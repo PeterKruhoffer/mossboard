@@ -4,4 +4,14 @@ set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-printf 'Mossboard setup: no toolchains or dependencies to install.\n'
+corepack_version="0.34.0"
+if [[ "$(corepack --version 2>/dev/null || true)" != "$corepack_version" ]]; then
+  printf 'Mossboard setup: installing Corepack %s.\n' "$corepack_version"
+  npm install --global --ignore-scripts "corepack@$corepack_version"
+fi
+
+printf 'Mossboard setup: enabling the pinned pnpm release.\n'
+corepack enable pnpm
+
+printf 'Mossboard setup: installing locked dependencies.\n'
+pnpm install --frozen-lockfile

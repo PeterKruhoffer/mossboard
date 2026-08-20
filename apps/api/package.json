@@ -1,0 +1,15 @@
+{
+  "name": "@mossboard/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "alchemy": "2.0.0-beta.72",
+    "effect": "4.0.0-rc.108"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}

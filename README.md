@@ -4,13 +4,28 @@ Mossboard is a visual workspace for exploring changes to a garden. A user walks 
 
 Users draw areas, place garden symbols, and annotate ideas with a mouse, touch, or Apple Pencil. The editor is intended for quick, forgiving experimentation rather than professional CAD or survey work.
 
-## Architecture
+## Tech stack
 
-- TypeScript and Effect 4 for the backend and shared domain logic
-- Alchemy v2 and Cloudflare for infrastructure
-- React and a tldraw-style canvas for the web application
-- Native Swift, UIKit, and PencilKit for iPhone and iPad
-- A platform-independent garden document shared across clients
-- Local-first editing with synchronization when connectivity is available
+- A pnpm workspace running on Node.js 22.13 or newer
+- React 19 and Vite 8 for the web application
+- TypeScript and Effect 4 for the Cloudflare Worker backend and shared domain logic
+- Alchemy v2 for Cloudflare infrastructure as code
+- Cloudflare Workers, D1, and R2 in the initial stack
+- Durable Objects and Workflows when synchronization and AI jobs need them
 
-Read the [product vision](docs/product.md) for the intended experience, principles, workflow, and initial scope.
+The dependency policy pins direct dependencies, delays newly published packages for seven days, blocks exotic transitive sources, and permits install scripts only for named packages.
+
+## Development
+
+```sh
+corepack enable
+pnpm install --frozen-lockfile
+pnpm check
+pnpm dev
+```
+
+`pnpm dev` uses real Cloudflare resources and needs Cloudflare credentials. The credentials-free web server is `pnpm --filter @mossboard/web dev`.
+
+Read [development and infrastructure setup](docs/setup.md) for repository layout, commands, Cloudflare permissions, orb secrets, and optional MCP configuration. Read the [product vision](docs/product.md) for the intended experience and initial scope.
+
+The native iPhone and iPad clients remain part of the product direction, but this repository setup does not include iOS tooling yet.

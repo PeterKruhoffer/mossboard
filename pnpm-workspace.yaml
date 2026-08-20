@@ -1,0 +1,24 @@
+packages:
+  - apps/*
+
+overrides:
+  "@hono/node-server": 1.19.15
+  hono: 4.12.34
+  valibot: 1.4.2
+
+minimumReleaseAge: 10080
+blockExoticSubdeps: true
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 10080
+saveExact: true
+engineStrict: true
+strictPeerDependencies: true
+verifyStoreIntegrity: true
+strictStorePkgContentCheck: true
+strictDepBuilds: true
+
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: false
+  sharp: false
+  workerd: true

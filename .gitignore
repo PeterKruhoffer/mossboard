@@ -1,1 +1,8 @@
 .amp/portals/*
+.alchemy/
+.env
+.env.*
+!.env.example
+dist/
+node_modules/
+*.tsbuildinfo
