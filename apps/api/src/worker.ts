@@ -16,7 +16,7 @@ export default Cloudflare.Worker(
     return {
       fetch: Effect.gen(function* () {
         const request = yield* HttpServerRequest;
-        const url = new URL(request.url);
+        const url = new URL(request.originalUrl);
 
         if (request.method === "GET" && url.pathname === "/health") {
           return yield* HttpServerResponse.json({ ok: true });
