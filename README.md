@@ -26,6 +26,8 @@ pnpm dev
 
 `pnpm dev` uses real Cloudflare resources and needs Cloudflare credentials. The credentials-free web server is `pnpm --filter @mossboard/web dev`.
 
+Inside an Amp orb, `amp orb services ensure` starts the credentials-free web server and publishes its browser URL in the Portal tab. The Vite server accepts generated `onamp.dev` portal hosts while rejecting unrelated hosts.
+
 Read [development and infrastructure setup](docs/setup.md) for repository layout, commands, Cloudflare permissions, orb secrets, and optional MCP configuration. Read the [product vision](docs/product.md) for the intended experience and initial scope.
 
 The native iPhone and iPad clients remain part of the product direction, but this repository setup does not include iOS tooling yet.

@@ -1,10 +1,39 @@
+import {
+  ClerkProvider,
+  Show,
+  SignInButton,
+  UserButton,
+} from "@clerk/react";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "./styles.css";
 
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!clerkPublishableKey) {
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
+}
+
 function App() {
   return (
     <main className="garden-background text-moss grid min-h-screen content-center px-page py-8">
+      <div className="absolute top-6 right-6 sm:top-8 sm:right-8">
+        <Show
+          fallback={
+            <SignInButton mode="modal">
+              <button
+                className="border-moss/30 hover:bg-moss focus-visible:outline-moss rounded-full border px-5 py-2 text-sm font-semibold transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2"
+                type="button"
+              >
+                Sign in
+              </button>
+            </SignInButton>
+          }
+          when="signed-in"
+        >
+          <UserButton />
+        </Show>
+      </div>
       <p className="text-eyebrow tracking-eyebrow text-sage mb-4 font-bold uppercase">
         Garden planning, without the graph paper
       </p>
@@ -30,6 +59,8 @@ if (root === null) {
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <ClerkProvider publishableKey={clerkPublishableKey}>
+      <App />
+    </ClerkProvider>
   </StrictMode>,
 );

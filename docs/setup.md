@@ -64,7 +64,7 @@ When adding a package, prefer `pnpm add --save-exact`. Do not bypass the release
 
 ## Cloudflare credentials and secrets
 
-The application has no runtime secrets yet. `VITE_API_URL` is public configuration and is compiled into browser JavaScript. Never put a secret in a `VITE_` variable.
+The application has no runtime secrets yet. `VITE_API_URL` and `VITE_CLERK_PUBLISHABLE_KEY` are public configuration compiled into browser JavaScript. Never put a secret in a `VITE_` variable. Clerk authentication needs the publishable key for local web builds and Alchemy deployments.
 
 For interactive work, run `pnpm exec alchemy login`. Alchemy can open Cloudflare OAuth and stores the resulting profile outside the repository in `~/.alchemy/profiles.json`.
 
@@ -75,6 +75,7 @@ Fresh orbs and CI should receive these values as managed secrets rather than com
 | `CLOUDFLARE_ACCOUNT_ID` | No | Cloudflare account that owns each stage |
 | `CLOUDFLARE_API_TOKEN` | Yes | Non-interactive Alchemy authentication |
 | `ALCHEMY_PROFILE` | No | Optional Alchemy profile name, defaults to `default` |
+| `VITE_CLERK_PUBLISHABLE_KEY` | No | Clerk publishable key used by the web application |
 
 Add the first two to the Amp project environment for future orbs. Do not add a real `.env` file to the repository. `.env.example` is only an inventory of names.
 

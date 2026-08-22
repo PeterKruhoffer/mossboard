@@ -3,6 +3,12 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
 import Backend from "./apps/api/src/worker.ts";
 
+const clerkPublishableKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
+
+if (!clerkPublishableKey) {
+  throw new Error("Missing VITE_CLERK_PUBLISHABLE_KEY");
+}
+
 export default Alchemy.Stack(
   "Mossboard",
   {
@@ -15,6 +21,7 @@ export default Alchemy.Stack(
       rootDir: "./apps/web",
       env: {
         VITE_API_URL: backend.url.as<string>(),
+        VITE_CLERK_PUBLISHABLE_KEY: clerkPublishableKey,
       },
       assets: {
         notFoundHandling: "single-page-application",

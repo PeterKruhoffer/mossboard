@@ -1,0 +1,7 @@
+services:
+  web:
+    command: pnpm --filter @mossboard/web dev --host 0.0.0.0 --port "$PORT"
+    health: /
+    portal:
+      title: Mossboard
+      description: Test the web app and Clerk authentication.
