@@ -1,6 +1,7 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 import * as Effect from "effect/Effect";
+import { AiGateway } from "./apps/api/src/ai.ts";
 import Backend from "./apps/api/src/worker.ts";
 
 const clerkPublishableKey = process.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -16,6 +17,7 @@ export default Alchemy.Stack(
     state: Cloudflare.state(),
   },
   Effect.gen(function* () {
+    const aiGateway = yield* AiGateway;
     const backend = yield* Backend;
     const website = yield* Cloudflare.Website.Vite("Website", {
       rootDir: "./apps/web",
@@ -32,6 +34,7 @@ export default Alchemy.Stack(
     });
 
     return {
+      aiGatewayId: aiGateway.gatewayId,
       backendUrl: backend.url.as<string>(),
       websiteUrl: website.url.as<string>(),
     };
