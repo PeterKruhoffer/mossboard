@@ -11,6 +11,7 @@ export const AiGateway = Cloudflare.AI.Gateway("AiGateway", {
       {
         limitType: "cost",
         limit: DAILY_SPEND_LIMIT_CENTS,
+        technique: "sliding",
         window: "1 day",
       },
     ],
