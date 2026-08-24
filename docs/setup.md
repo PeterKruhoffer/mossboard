@@ -38,12 +38,12 @@ Run the full Alchemy stack with hot reload:
 pnpm dev
 ```
 
-Alchemy runs application code locally but connects D1 and R2 bindings to real Cloudflare resources. It does not emulate them. Use a non-production Cloudflare account or stage for development.
+The package scripts pin Alchemy to the `dev_user` stage. Alchemy runs application code locally but connects D1 and R2 bindings to real Cloudflare resources. It does not emulate them. Use a non-production Cloudflare account for development.
 
 Deploy only after reviewing the plan shown by Alchemy:
 
 ```sh
-pnpm deploy -- --stage dev
+pnpm deploy
 ```
 
 Deployment changes external cloud resources and is not part of orb setup.

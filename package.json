@@ -9,9 +9,9 @@
   "scripts": {
     "build": "pnpm --filter @mossboard/web build",
     "check": "pnpm typecheck && pnpm build",
-    "deploy": "alchemy deploy",
-    "destroy": "alchemy destroy",
-    "dev": "alchemy dev",
+    "deploy": "alchemy deploy --stage dev_user",
+    "destroy": "alchemy destroy --stage dev_user",
+    "dev": "alchemy dev --stage dev_user",
     "typecheck": "pnpm --recursive typecheck && tsc --noEmit"
   },
   "dependencies": {
