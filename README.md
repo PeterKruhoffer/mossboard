@@ -1,5 +1,8 @@
 # Mossboard
 
+> [!NOTE]
+> This project is on pause for the time being.
+
 Mossboard is a visual workspace for exploring changes to a garden. A user walks around their garden taking photographs or video, then AI uses that material to produce several approximate top-down views. The user chooses one as the background for a sketch-like garden board.
 
 Users draw areas, place garden symbols, and annotate ideas with a mouse, touch, or Apple Pencil. The editor is intended for quick, forgiving experimentation rather than professional CAD or survey work.
