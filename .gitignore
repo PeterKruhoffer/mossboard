@@ -1,4 +1,6 @@
 .amp/portals/*
+.amp/evals/
+.amp/tmp/
 .alchemy/
 .env
 .env.*

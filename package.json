@@ -12,6 +12,9 @@
     "deploy": "alchemy deploy --stage dev_user",
     "destroy": "alchemy destroy --stage dev_user",
     "dev": "alchemy dev --stage dev_user",
+    "eval:images": "node scripts/evaluate-top-down-images.mjs",
+    "eval:layout": "node scripts/top-down-layout-server.mjs",
+    "eval:refine": "node scripts/refinement-guide-server.mjs",
     "typecheck": "pnpm --recursive typecheck && tsc --noEmit"
   },
   "dependencies": {

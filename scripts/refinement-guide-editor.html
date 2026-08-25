@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mossboard local refinement</title>
+  <style>
+    :root { font: 15px/1.4 Inter, ui-sans-serif, system-ui, sans-serif; color: #213027; background: #ecece5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    button, input { font: inherit; }
+    button { border: 1px solid #b9bdb3; border-radius: 7px; padding: .5rem .7rem; background: #fff; color: inherit; cursor: pointer; }
+    button:hover, button[aria-pressed="true"] { border-color: #496848; background: #e5eee0; }
+    button.primary { border-color: #294a32; background: #294a32; color: white; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .8rem 1rem; background: #fafaf6; border-bottom: 1px solid #d1d3ca; }
+    h1 { margin: 0; font-size: 1.05rem; } header p { margin: .2rem 0 0; color: #687067; font-size: .85rem; }
+    .save-area { display: flex; align-items: center; gap: .7rem; } #status { color: #536057; font-size: .85rem; }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 350px; min-height: 0; }
+    .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+    .toolbar { display: flex; gap: .5rem; align-items: center; padding: .65rem 1rem; background: #f7f7f2; border-bottom: 1px solid #d1d3ca; }
+    .toolbar span { color: #687067; font-size: .85rem; }
+    .canvas-wrap { min-height: 0; padding: 1rem; display: grid; place-items: center; overflow: hidden; }
+    canvas { width: min(100%, calc(100vh - 150px)); aspect-ratio: 1; max-height: 100%; border: 1px solid #bbbfb5; box-shadow: 0 8px 30px rgb(56 63 53 / 15%); touch-action: none; background: #ddd; }
+    aside { overflow: auto; min-height: 0; padding: 1rem; background: #fafaf6; border-left: 1px solid #d1d3ca; }
+    aside h2 { margin: 0 0 .6rem; font-size: .95rem; }
+    .instructions { padding: .75rem; margin-bottom: 1rem; background: #eef1e9; color: #566057; border-radius: 7px; font-size: .84rem; }
+    .field { display: grid; gap: .3rem; margin: .7rem 0; } .field-row { display: flex; justify-content: space-between; }
+    input[type="range"] { width: 100%; accent-color: #385f3e; }
+    #remove { width: 100%; color: #912a31; margin-bottom: 1rem; }
+    .photo-list { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; }
+    .photo-card { padding: .35rem; text-align: left; min-width: 0; }
+    .photo-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; }
+    .photo-card span { display: block; padding-top: .25rem; font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 850px) { body { height: auto; display: block; overflow: auto; } main { grid-template-columns: 1fr; } .workspace { min-height: 70vh; } aside { border-left: 0; border-top: 1px solid #d1d3ca; } canvas { width: 100%; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Local garden refinement</h1><p>Mark the incorrect area and place source photos over it as evidence.</p></div>
+    <div class="save-area"><span id="status" role="status"></span><button class="primary" id="save">Save guide</button></div>
+  </header>
+  <main>
+    <section class="workspace">
+      <div class="toolbar"><button id="region">Draw correction area</button><span id="hint">Drag photo overlays to position them.</span></div>
+      <div class="canvas-wrap"><canvas id="canvas" width="1024" height="1024"></canvas></div>
+    </section>
+    <aside>
+      <div class="instructions">Draw a box around the wrong part of the generated image. Add the photos that show what belongs there, then drag, scale, rotate, and fade them into approximate alignment. This is a guide for the model, not the final composite.</div>
+      <section id="inspector" hidden>
+        <h2>Selected overlay</h2>
+        <div id="selected-name"></div>
+        <label class="field"><span class="field-row"><span>Size</span><output id="scale-output"></output></span><input id="scale" type="range" min="80" max="1000" step="5"></label>
+        <label class="field"><span class="field-row"><span>Rotation</span><output id="rotation-output"></output></span><input id="rotation" type="range" min="-180" max="180" step="1"></label>
+        <label class="field"><span class="field-row"><span>Opacity</span><output id="opacity-output"></output></span><input id="opacity" type="range" min="10" max="100" step="5"></label>
+        <button id="remove">Remove selected overlay</button>
+      </section>
+      <h2>Add a source photo</h2>
+      <div class="photo-list" id="photo-list"></div>
+    </aside>
+  </main>
+  <script>
+    const canvas = document.querySelector('#canvas');
+    const context = canvas.getContext('2d');
+    const imageCache = new Map();
+    let state;
+    let selected = -1;
+    let mode = 'move';
+    let drag;
+
+    const photoUrl = name => `/photos/${encodeURIComponent(name)}`;
+    const escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+    const pointFromEvent = event => {
+      const bounds = canvas.getBoundingClientRect();
+      return {
+        x: Math.max(0, Math.min(1024, (event.clientX - bounds.left) * 1024 / bounds.width)),
+        y: Math.max(0, Math.min(1024, (event.clientY - bounds.top) * 1024 / bounds.height))
+      };
+    };
+    const loadImage = source => {
+      if (!imageCache.has(source)) {
+        imageCache.set(source, new Promise((resolve, reject) => {
+          const image = new Image();
+          image.onload = () => resolve(image);
+          image.onerror = reject;
+          image.src = source;
+        }));
+      }
+      return imageCache.get(source);
+    };
+
+    async function draw(includeAnnotations = true) {
+      context.clearRect(0, 0, 1024, 1024);
+      context.drawImage(await loadImage('/base'), 0, 0, 1024, 1024);
+      for (const [index, overlay] of state.overlays.entries()) {
+        const image = await loadImage(photoUrl(overlay.source));
+        context.save();
+        context.globalAlpha = overlay.opacity;
+        context.translate(overlay.x + overlay.width / 2, overlay.y + overlay.height / 2);
+        context.rotate(overlay.rotation * Math.PI / 180);
+        context.drawImage(image, -overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
+        if (includeAnnotations && index === selected) {
+          context.globalAlpha = 1;
+          context.strokeStyle = '#fff';
+          context.lineWidth = 8;
+          context.strokeRect(-overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
+          context.strokeStyle = '#b6242b';
+          context.lineWidth = 4;
+          context.strokeRect(-overlay.width / 2, -overlay.height / 2, overlay.width, overlay.height);
+        }
+        context.restore();
+      }
+      if (includeAnnotations) {
+        const region = state.region;
+        context.fillStyle = 'rgb(196 35 43 / 12%)';
+        context.fillRect(region.x, region.y, region.width, region.height);
+        context.strokeStyle = '#c4232b';
+        context.lineWidth = 8;
+        context.setLineDash([18, 12]);
+        context.strokeRect(region.x, region.y, region.width, region.height);
+        context.setLineDash([]);
+      }
+      renderInspector();
+    }
+
+    function renderInspector() {
+      const overlay = state.overlays[selected];
+      document.querySelector('#inspector').hidden = !overlay;
+      if (!overlay) return;
+      document.querySelector('#selected-name').textContent = overlay.source;
+      document.querySelector('#scale').value = overlay.width;
+      document.querySelector('#rotation').value = overlay.rotation;
+      document.querySelector('#opacity').value = Math.round(overlay.opacity * 100);
+      document.querySelector('#scale-output').textContent = `${Math.round(overlay.width)} px`;
+      document.querySelector('#rotation-output').textContent = `${Math.round(overlay.rotation)}°`;
+      document.querySelector('#opacity-output').textContent = `${Math.round(overlay.opacity * 100)}%`;
+    }
+
+    function hitOverlay(point) {
+      for (let index = state.overlays.length - 1; index >= 0; index -= 1) {
+        const overlay = state.overlays[index];
+        const centerX = overlay.x + overlay.width / 2;
+        const centerY = overlay.y + overlay.height / 2;
+        const radians = -overlay.rotation * Math.PI / 180;
+        const x = Math.cos(radians) * (point.x - centerX) - Math.sin(radians) * (point.y - centerY);
+        const y = Math.sin(radians) * (point.x - centerX) + Math.cos(radians) * (point.y - centerY);
+        if (Math.abs(x) <= overlay.width / 2 && Math.abs(y) <= overlay.height / 2) return index;
+      }
+      return -1;
+    }
+
+    async function addOverlay(source) {
+      const image = await loadImage(photoUrl(source));
+      const width = Math.min(460, Math.max(180, state.region.width));
+      const height = width * image.naturalHeight / image.naturalWidth;
+      state.overlays.push({ source, x: state.region.x + (state.region.width - width) / 2, y: state.region.y + (state.region.height - height) / 2, width, height, rotation: 0, opacity: .65 });
+      selected = state.overlays.length - 1;
+      mode = 'move';
+      document.querySelector('#region').setAttribute('aria-pressed', 'false');
+      await draw();
+    }
+
+    canvas.addEventListener('pointerdown', event => {
+      const point = pointFromEvent(event);
+      canvas.setPointerCapture(event.pointerId);
+      if (mode === 'region') {
+        drag = { type: 'region', start: point };
+        state.region = { x: point.x, y: point.y, width: 20, height: 20 };
+      } else {
+        selected = hitOverlay(point);
+        drag = selected >= 0 ? { type: 'overlay', offsetX: point.x - state.overlays[selected].x, offsetY: point.y - state.overlays[selected].y } : undefined;
+      }
+      draw();
+    });
+    canvas.addEventListener('pointermove', event => {
+      if (!drag) return;
+      const point = pointFromEvent(event);
+      if (drag.type === 'region') {
+        state.region = { x: Math.min(drag.start.x, point.x), y: Math.min(drag.start.y, point.y), width: Math.max(20, Math.abs(point.x - drag.start.x)), height: Math.max(20, Math.abs(point.y - drag.start.y)) };
+      } else {
+        state.overlays[selected].x = point.x - drag.offsetX;
+        state.overlays[selected].y = point.y - drag.offsetY;
+      }
+      draw();
+    });
+    canvas.addEventListener('pointerup', () => { drag = undefined; if (mode === 'region') { mode = 'move'; document.querySelector('#region').setAttribute('aria-pressed', 'false'); } });
+
+    document.querySelector('#region').addEventListener('click', event => {
+      mode = mode === 'region' ? 'move' : 'region';
+      event.currentTarget.setAttribute('aria-pressed', String(mode === 'region'));
+      document.querySelector('#hint').textContent = mode === 'region' ? 'Drag a box around the part that needs correction.' : 'Drag photo overlays to position them.';
+    });
+    document.querySelector('#scale').addEventListener('input', event => {
+      const overlay = state.overlays[selected];
+      const ratio = overlay.height / overlay.width;
+      overlay.width = Number(event.target.value);
+      overlay.height = overlay.width * ratio;
+      draw();
+    });
+    document.querySelector('#rotation').addEventListener('input', event => { state.overlays[selected].rotation = Number(event.target.value); draw(); });
+    document.querySelector('#opacity').addEventListener('input', event => { state.overlays[selected].opacity = Number(event.target.value) / 100; draw(); });
+    document.querySelector('#remove').addEventListener('click', () => { state.overlays.splice(selected, 1); selected = -1; draw(); });
+    document.querySelector('#save').addEventListener('click', async () => {
+      document.querySelector('#status').textContent = 'Saving…';
+      selected = -1;
+      await draw(true);
+      const response = await fetch('/api/refinement', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...state, guideDataUrl: canvas.toDataURL('image/png') }) });
+      const result = await response.json();
+      document.querySelector('#status').textContent = response.ok ? 'Saved' : result.error || 'Save failed';
+    });
+
+    async function start() {
+      const serverState = await fetch('/api/state').then(response => response.json());
+      state = serverState.refinement || { version: 1, region: { x: 640, y: 20, width: 364, height: 390 }, overlays: [] };
+      document.querySelector('#photo-list').innerHTML = serverState.photos.map(source => `<button class="photo-card" data-source="${escapeHtml(source)}"><img src="${photoUrl(source)}" alt=""><span>${escapeHtml(source)}</span></button>`).join('');
+      document.querySelectorAll('.photo-card').forEach(button => button.addEventListener('click', () => addOverlay(button.dataset.source)));
+      await draw();
+    }
+    start().catch(error => { document.querySelector('#status').textContent = error.message; });
+  </script>
+</body>
+</html>

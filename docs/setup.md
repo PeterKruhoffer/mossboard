@@ -75,6 +75,7 @@ Fresh orbs and CI should receive these values as managed secrets rather than com
 | --- | --- | --- |
 | `CLOUDFLARE_ACCOUNT_ID` | No | Cloudflare account that owns each stage |
 | `CLOUDFLARE_API_TOKEN` | Yes | Non-interactive Alchemy authentication |
+| `CLOUDFLARE_AI_GATEWAY_TOKEN` | Yes | Narrow token used to run model evaluations |
 | `ALCHEMY_PROFILE` | No | Optional Alchemy profile name, defaults to `default` |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Yes | Clerk publishable key used by the web application and API verifier |
 | `CLERK_SECRET_KEY` | Yes | Clerk backend key used to verify session tokens |
@@ -93,13 +94,15 @@ For the current stack, scope the Cloudflare token to the target account with:
 
 `Secrets Store Write` is required by `Cloudflare.state()`, including CI state lookup. Add Workers Tail Read only when remote log tailing is needed. Do not use a token that can manage other API tokens for routine development or deployment.
 
+Scope `CLOUDFLARE_AI_GATEWAY_TOKEN` to the target account with Workers AI Read and AI Gateway Run. Keep it separate from the broader Alchemy deployment token.
+
 Alchemy's local profile and state-store metadata live outside Git. A fresh orb does not inherit them, which is why project-level environment values are the reliable non-interactive setup.
 
 The API leaves `GET /health` public and requires a Clerk session token for every other route. Browser clients obtain a token with Clerk's `getToken()` and send `Authorization: Bearer <token>`. `GET /api/me` is the minimal authenticated probe and returns the verified Clerk user and active organization identifiers. An invalid or missing token returns 401; an unexpected verifier failure returns 503.
 
 Set `CLERK_AUTHORIZED_PARTIES` to exact origins, without paths. Include `http://localhost:5173` for local browser development and the deployed website origin for each stage. On the first deployment without a known website URL, deploy with the local origin, copy the resulting `websiteUrl`, add its origin to this variable, and deploy again before testing sign-in on the deployed site. The API only answers CORS preflight requests from those origins. Native clients do not use CORS, but their Clerk session token must still contain an authorized-party claim accepted by this list.
 
-AI Gateway Unified Billing does not require a third-party provider key. Before the first model request, open **AI > AI Gateway** in the Cloudflare dashboard, load prepaid credits, and confirm that the deployed gateway has no default BYOK provider key. A default provider key takes precedence over Unified Billing and causes that provider to bill the request directly. The gateway response metadata reports `keySource` as `Unified` or `BYOK`; retain that metadata with generation job records once the job pipeline exists.
+AI Gateway Unified Billing does not require a third-party provider key. It does require gateway authentication, which the stack enables. The Cloudflare API token used for REST evaluation requests needs both Workers AI Read and AI Gateway Run. Before the first model request, open **AI > AI Gateway** in the Cloudflare dashboard, load prepaid credits, and confirm that the deployed gateway has no default BYOK provider key. A default provider key takes precedence over Unified Billing and causes that provider to bill the request directly. The gateway response metadata reports `keySource` as `Unified` or `BYOK`; retain that metadata with generation job records once the job pipeline exists.
 
 The $10 rolling daily gateway limit is a guardrail, not a user quota. Keep it low during model evaluation and replace it with per-user limits before launch. Unified Billing adds a 5% fee when credits are purchased. Workers AI models with an `@cf/` prefix use Workers AI billing unless the gateway's Workers AI billing setting is changed in the Cloudflare dashboard.
 
@@ -110,6 +113,31 @@ Future services that do require secrets must declare each one in this document a
 The initial model evaluation should compare photos alone against photos anchored by licensed aerial imagery and a rough user-corrected plan. Do not scrape map screenshots. The imagery license must permit storage, transformation, and submission to the selected model. Store the provider, capture date, attribution requirements, license basis, and source coordinates with each aerial asset.
 
 Treat a garden address, coordinates, aerial image, and ground captures as private project data. Ask for location consent separately from photo access. The current gateway deliberately disables request logging and caching. Provider retention terms still apply; Cloudflare's Zero Data Retention setting must not be presented as protection for a provider that does not support it.
+
+The repository includes a local evaluation harness and a small spatial-layout editor. Put a capture set in an ignored directory, then start the editor:
+
+```sh
+pnpm eval:layout -- --input .amp/evals/my-garden/source-photos --workspace .amp/evals/my-garden
+```
+
+The editor saves `layout.json`, `layout.svg`, and `layout.png` in its workspace. Draw the approximate garden boundary and structure footprints, place each camera, set its viewing direction and field of view, and add fixed landmarks that appear across photographs. Overlapping or unhelpful photos can be excluded without deleting them. Excluded photos remain available in the editor but are omitted from model requests and the saved layout diagram. The layout is deliberately described as approximate and not to scale.
+
+After saving the layout, run the model comparison:
+
+```sh
+pnpm eval:images -- \
+  --input .amp/evals/my-garden/photos \
+  --layout .amp/evals/my-garden/layout.json \
+  --output .amp/evals/my-garden/run-1
+```
+
+The harness compares the Cloudflare-hosted FLUX.2 Dev baseline with FLUX.2 Max, GPT Image 1.5, and Seedream 5 Pro through the deployed gateway. Grok Imagine Image Quality is available for explicit masked-edit runs. The harness normalizes local inputs, runs models sequentially, retains response and billing metadata, and writes a blind side-by-side scoring page under the output directory. Source photographs, layouts, and generated outputs are deliberately excluded from Git. ImageMagick's `magick` executable is required for local normalization and diagram rendering.
+
+Use `--dry-run` to inspect prepared inputs without calling a model. Use `--models <model-id,model-id>` for a cheaper partial run. The FLUX.2 Dev request is limited to four references. With a saved layout, it receives the diagram plus three broad-coverage photos. Other models receive the diagram and every photo up to their documented limit.
+
+For an iterative correction run, pass the previous result with `--base-image <path>`. The request orders the layout first, the previous draft second, and the source photos after them. Account for both the layout and draft when selecting photos under a model's reference limit.
+
+When a draft needs a localized correction, start the refinement guide editor with `pnpm eval:refine -- --base <generated-image> --input <photos> --workspace <directory>`. Draw the correction area and place, scale, rotate, and fade source photos over the draft. The editor saves `refinement.json`, `refinement-guide.png`, and a black-preserve, white-edit `refinement-mask.png`. Seedream can receive the guide through `--guide-image <path>`. Grok Imagine Image Quality can receive the binary mask through `--mask-image <path>`.
 
 ## Optional Cloudflare MCP access
 

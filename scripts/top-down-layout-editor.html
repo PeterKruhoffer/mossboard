@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mossboard garden layout</title>
+  <style>
+    :root { color-scheme: light; font: 15px/1.45 Inter, ui-sans-serif, system-ui, sans-serif; color: #213027; background: #ecece5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    button, input { font: inherit; }
+    button { border: 1px solid #b9bdb3; border-radius: 7px; padding: .55rem .75rem; background: #fff; color: inherit; cursor: pointer; }
+    button:hover, button[aria-pressed="true"] { border-color: #496848; background: #e5eee0; }
+    button.primary { border-color: #294a32; background: #294a32; color: white; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 1rem; background: #fafaf6; border-bottom: 1px solid #d1d3ca; }
+    h1 { margin: 0; font: 650 1.05rem/1.2 inherit; }
+    header p { margin: .2rem 0 0; color: #697169; font-size: .86rem; }
+    .save-area { display: flex; align-items: center; gap: .7rem; }
+    #status { min-width: 6rem; text-align: right; color: #536057; font-size: .86rem; }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-height: 0; overflow: hidden; }
+    .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
+    .toolbar { display: flex; gap: .45rem; align-items: center; padding: .65rem 1rem; background: #f7f7f2; border-bottom: 1px solid #d1d3ca; overflow-x: auto; }
+    .toolbar .spacer { flex: 1; }
+    .hint { white-space: nowrap; color: #667067; font-size: .85rem; }
+    .plan-wrap { min-height: 0; padding: 1rem; display: grid; place-items: center; overflow: hidden; }
+    #plan { width: 100%; height: 100%; max-height: 100%; background: #f8f7f1; border: 1px solid #c5c8be; border-radius: 9px; box-shadow: 0 8px 30px rgb(56 63 53 / 12%); touch-action: none; }
+    #plan .camera { cursor: grab; }
+    #plan .camera:active { cursor: grabbing; }
+    #plan .camera.selected .camera-ring { stroke: #142e1a; stroke-width: 8; }
+    aside { min-height: 0; overflow: auto; background: #fafaf6; border-left: 1px solid #d1d3ca; padding: 1rem; }
+    aside h2 { margin: 0 0 .75rem; font-size: .95rem; }
+    .preview { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 7px; background: #ddd; display: block; }
+    .selected-name { margin: .55rem 0 1rem; font-weight: 650; overflow-wrap: anywhere; }
+    .field { display: grid; gap: .35rem; margin: .8rem 0; }
+    .field-row { display: flex; justify-content: space-between; align-items: center; }
+    .field output { color: #687067; font-variant-numeric: tabular-nums; }
+    input[type="range"] { width: 100%; accent-color: #385f3e; }
+    input[type="text"] { width: 100%; border: 1px solid #b9bdb3; border-radius: 6px; padding: .55rem; }
+    .photo-list { display: grid; grid-template-columns: 1fr 1fr; gap: .55rem; margin-top: .75rem; }
+    .photo-card { padding: .35rem; text-align: left; min-width: 0; }
+    .photo-card img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 4px; display: block; }
+    .photo-card span { display: block; padding: .3rem .1rem 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: .75rem; }
+    .photo-card.active { outline: 2px solid #294a32; }
+    .photo-card.excluded { opacity: .45; filter: grayscale(1); }
+    .photo-card.excluded span::after { content: " · excluded"; color: #912a31; }
+    .instructions { padding: .75rem; background: #eef1e9; border-radius: 7px; color: #566057; font-size: .84rem; margin-bottom: 1rem; }
+    .drawn-items { display: grid; gap: .4rem; margin-bottom: 1rem; }
+    .drawn-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .5rem; border: 1px solid #d5d7cf; border-radius: 6px; background: #fff; }
+    .drawn-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .drawn-item button { flex: none; padding: .3rem .5rem; color: #912a31; }
+    @media (max-width: 850px) { body { height: auto; display: block; overflow: auto; } main { grid-template-columns: 1fr; } .workspace { min-height: 70vh; } aside { border-left: 0; border-top: 1px solid #d1d3ca; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div><h1>Approximate garden layout</h1><p>Place cameras and fixed geometry. Accuracy to a few metres is enough.</p></div>
+    <div class="save-area"><span id="status" role="status"></span><button class="primary" id="save">Save layout</button></div>
+  </header>
+  <main>
+    <section class="workspace">
+      <nav class="toolbar" aria-label="Plan tools">
+        <button data-tool="select" aria-pressed="true">Move cameras</button>
+        <button data-tool="boundary" aria-pressed="false">Draw garden</button>
+        <button data-tool="structure" aria-pressed="false">Draw structure</button>
+        <button data-tool="landmark" aria-pressed="false">Add landmark</button>
+        <button id="finish" hidden>Finish shape</button>
+        <button id="undo">Undo point</button>
+        <span class="spacer"></span><span class="hint" id="hint">Drag a numbered photo marker.</span>
+      </nav>
+      <div class="plan-wrap"><svg id="plan" viewBox="0 0 1000 700" aria-label="Editable overhead garden plan"></svg></div>
+    </section>
+    <aside>
+      <div class="instructions">Start with the garden outline, then add the house and veranda. Drag each numbered photo to where it was taken and aim its arrow in the direction the camera faced.</div>
+      <section><h2>Drawn items</h2><div class="drawn-items" id="drawn-items"></div></section>
+      <section id="camera-inspector">
+        <h2>Selected photo</h2>
+        <img class="preview" id="preview" alt="Selected garden reference">
+        <div class="selected-name" id="selected-name"></div>
+        <label class="field"><span><input id="included" type="checkbox"> Use this photo in eval runs</span></label>
+        <label class="field"><span class="field-row"><span>Direction</span><output id="angle-output"></output></span><input id="angle" type="range" min="0" max="359" step="1"></label>
+        <label class="field"><span class="field-row"><span>Field of view</span><output id="fov-output"></output></span><input id="fov" type="range" min="30" max="120" step="5"></label>
+      </section>
+      <label class="field"><span>New structure name</span><input id="structure-name" type="text" value="House" maxlength="40"></label>
+      <label class="field"><span>New landmark name</span><input id="landmark-name" type="text" placeholder="Large conifer" maxlength="40"></label>
+      <h2>Reference photos</h2><div class="instructions" id="reference-count"></div><div class="photo-list" id="photo-list"></div>
+    </aside>
+  </main>
+  <script>
+    const svg = document.querySelector('#plan');
+    const ns = 'http://www.w3.org/2000/svg';
+    const hints = {
+      select: 'Drag a numbered photo marker.',
+      boundary: 'Click garden corners, then finish the shape.',
+      structure: 'Click structure corners, then finish the shape.',
+      landmark: 'Enter a landmark name, then click its position.'
+    };
+    let layout;
+    let selectedCamera = 0;
+    let tool = 'select';
+    let drawing = [];
+    let dragging;
+
+    const escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+    const polygon = points => points.map(point => `${point.x},${point.y}`).join(' ');
+    const photoUrl = name => `/photos/${encodeURIComponent(name)}`;
+    const pointFromEvent = event => {
+      const point = new DOMPoint(event.clientX, event.clientY).matrixTransform(svg.getScreenCTM().inverse());
+      return { x: Math.max(0, Math.min(1000, Math.round(point.x))), y: Math.max(0, Math.min(700, Math.round(point.y))) };
+    };
+
+    function initialLayout(photos) {
+      const boundary = [{ x: 130, y: 90 }, { x: 870, y: 90 }, { x: 870, y: 610 }, { x: 130, y: 610 }];
+      const columns = Math.min(8, Math.ceil(photos.length / 2));
+      return {
+        version: 1,
+        boundary,
+        structures: [],
+        landmarks: [],
+        cameras: photos.map((source, index) => {
+          const row = Math.floor(index / columns);
+          const column = index % columns;
+          const rowLength = Math.min(columns, photos.length - row * columns);
+          const x = rowLength === 1 ? 500 : 70 + column * (860 / (rowLength - 1));
+          const y = row === 0 ? 65 : 635;
+          const angle = Math.atan2(350 - y, 500 - x) * 180 / Math.PI;
+          return { source, label: String(index + 1), x, y, angle: (angle + 360) % 360, fieldOfView: 70, included: true };
+        })
+      };
+    }
+
+    function mergeSavedLayout(savedLayout, photos) {
+      const freshLayout = initialLayout(photos);
+      if (!savedLayout) return freshLayout;
+      const savedCameras = new Map(savedLayout.cameras.map(camera => [camera.source, camera]));
+      return {
+        ...savedLayout,
+        cameras: freshLayout.cameras.map(camera => ({ ...camera, ...savedCameras.get(camera.source), source: camera.source, label: camera.label }))
+      };
+    }
+
+    function render() {
+      const defs = `<defs><pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="#dddcd5"/></pattern><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#b52a32"/></marker>${layout.cameras.map((camera, index) => `<clipPath id="photo-${index}"><circle cx="${camera.x}" cy="${camera.y}" r="26"/></clipPath>`).join('')}</defs>`;
+      const boundary = layout.boundary.length >= 3 ? `<polygon points="${polygon(layout.boundary)}" fill="#dce8c7" stroke="#476340" stroke-width="7"/>` : '';
+      const structures = layout.structures.map(item => `<g><polygon points="${polygon(item.points)}" fill="#ead8bb" stroke="#604b38" stroke-width="6"/><text x="${item.points[0].x}" y="${item.points[0].y - 10}" font-size="22" font-weight="700">${escapeHtml(item.name)}</text></g>`).join('');
+      const landmarks = layout.landmarks.map(item => `<g><circle cx="${item.x}" cy="${item.y}" r="10" fill="#705087"/><text x="${item.x + 15}" y="${item.y + 7}" font-size="20">${escapeHtml(item.name)}</text></g>`).join('');
+      const cameras = layout.cameras.map((camera, index) => {
+        const radians = camera.angle * Math.PI / 180;
+        const halfFov = camera.fieldOfView * Math.PI / 360;
+        const length = 105;
+        const left = { x: camera.x + Math.cos(radians - halfFov) * length, y: camera.y + Math.sin(radians - halfFov) * length };
+        const right = { x: camera.x + Math.cos(radians + halfFov) * length, y: camera.y + Math.sin(radians + halfFov) * length };
+        const end = { x: camera.x + Math.cos(radians) * length, y: camera.y + Math.sin(radians) * length };
+        return `<g class="camera ${index === selectedCamera ? 'selected' : ''}" data-index="${index}" opacity="${camera.included === false ? '.35' : '1'}"><path d="M${camera.x} ${camera.y}L${left.x} ${left.y}A${length} ${length} 0 0 1 ${right.x} ${right.y}Z" fill="#c7505433"/><line x1="${camera.x}" y1="${camera.y}" x2="${end.x}" y2="${end.y}" stroke="#b52a32" stroke-width="7" marker-end="url(#arrow)"/><image href="${photoUrl(camera.source)}" x="${camera.x - 35}" y="${camera.y - 35}" width="70" height="70" preserveAspectRatio="xMidYMid slice" clip-path="url(#photo-${index})"/><circle class="camera-ring" cx="${camera.x}" cy="${camera.y}" r="28" fill="none" stroke="#fff" stroke-width="5"/><circle cx="${camera.x - 25}" cy="${camera.y - 25}" r="14" fill="#b52a32"/><text x="${camera.x - 25}" y="${camera.y - 20}" text-anchor="middle" fill="white" font-size="15" font-weight="800">${escapeHtml(camera.label)}</text></g>`;
+      }).join('');
+      const draft = drawing.length ? `<polyline points="${polygon(drawing)}" fill="none" stroke="#29709a" stroke-width="5" stroke-dasharray="10 8"/>${drawing.map(point => `<circle cx="${point.x}" cy="${point.y}" r="7" fill="#29709a"/>`).join('')}` : '';
+      svg.innerHTML = `${defs}<rect width="1000" height="700" fill="#f8f7f1"/><rect width="1000" height="700" fill="url(#grid)"/>${boundary}${structures}${landmarks}${draft}${cameras}<text x="22" y="677" fill="#62675f" font-size="17">Approximate layout, not to scale</text>`;
+      bindCameras();
+      renderInspector();
+      renderDrawnItems();
+    }
+
+    function bindCameras() {
+      svg.querySelectorAll('.camera').forEach(element => {
+        element.addEventListener('pointerdown', event => {
+          if (tool !== 'select') return;
+          selectedCamera = Number(element.dataset.index);
+          dragging = selectedCamera;
+          svg.setPointerCapture(event.pointerId);
+          render();
+        });
+      });
+    }
+
+    function renderInspector() {
+      const camera = layout.cameras[selectedCamera];
+      document.querySelector('#preview').src = photoUrl(camera.source);
+      document.querySelector('#selected-name').textContent = `Photo ${camera.label}: ${camera.source}`;
+      document.querySelector('#included').checked = camera.included !== false;
+      document.querySelector('#angle').value = camera.angle;
+      document.querySelector('#fov').value = camera.fieldOfView;
+      document.querySelector('#angle-output').textContent = `${Math.round(camera.angle)}°`;
+      document.querySelector('#fov-output').textContent = `${Math.round(camera.fieldOfView)}°`;
+      document.querySelectorAll('.photo-card').forEach((card, index) => {
+        card.classList.toggle('active', index === selectedCamera);
+        card.classList.toggle('excluded', layout.cameras[index].included === false);
+      });
+      const includedCount = layout.cameras.filter(camera => camera.included !== false).length;
+      document.querySelector('#reference-count').textContent = `${includedCount} of ${layout.cameras.length} selected. Seedream accepts at most 9 photos when the layout is included.`;
+    }
+
+    function renderDrawnItems() {
+      const items = [];
+      if (layout.boundary.length) {
+        items.push(`<div class="drawn-item"><span>Garden outline</span><button data-remove="boundary" aria-label="Remove garden outline">Remove</button></div>`);
+      }
+      layout.structures.forEach((structure, index) => {
+        items.push(`<div class="drawn-item"><span>Structure: ${escapeHtml(structure.name)}</span><button data-remove="structure" data-index="${index}" aria-label="Remove structure ${escapeHtml(structure.name)}">Remove</button></div>`);
+      });
+      layout.landmarks.forEach((landmark, index) => {
+        items.push(`<div class="drawn-item"><span>Landmark: ${escapeHtml(landmark.name)}</span><button data-remove="landmark" data-index="${index}" aria-label="Remove landmark ${escapeHtml(landmark.name)}">Remove</button></div>`);
+      });
+      const container = document.querySelector('#drawn-items');
+      container.innerHTML = items.join('') || '<span>No garden geometry drawn.</span>';
+      container.querySelectorAll('button').forEach(button => button.addEventListener('click', () => {
+        if (button.dataset.remove === 'boundary') layout.boundary = [];
+        if (button.dataset.remove === 'structure') layout.structures.splice(Number(button.dataset.index), 1);
+        if (button.dataset.remove === 'landmark') layout.landmarks.splice(Number(button.dataset.index), 1);
+        setStatus('Item removed. Save when the layout is ready.');
+        render();
+      }));
+    }
+
+    function setTool(nextTool) {
+      tool = nextTool;
+      drawing = [];
+      document.querySelectorAll('[data-tool]').forEach(button => button.setAttribute('aria-pressed', button.dataset.tool === tool));
+      document.querySelector('#finish').hidden = !['boundary', 'structure'].includes(tool);
+      document.querySelector('#hint').textContent = hints[tool];
+      render();
+    }
+
+    function finishShape() {
+      if (drawing.length < 3) return setStatus('Add at least three points', true);
+      if (tool === 'boundary') layout.boundary = [...drawing];
+      if (tool === 'structure') {
+        const name = document.querySelector('#structure-name').value.trim();
+        if (!name) return setStatus('Name the structure first', true);
+        layout.structures.push({ name, points: [...drawing] });
+      }
+      setTool('select');
+      setStatus('Shape added');
+    }
+
+    function setStatus(message, error = false) {
+      const status = document.querySelector('#status');
+      status.textContent = message;
+      status.style.color = error ? '#a1262d' : '';
+    }
+
+    svg.addEventListener('pointermove', event => {
+      if (dragging === undefined) return;
+      Object.assign(layout.cameras[dragging], pointFromEvent(event));
+      render();
+    });
+    svg.addEventListener('pointerup', () => { dragging = undefined; });
+    svg.addEventListener('click', event => {
+      if (event.target.closest?.('.camera') || tool === 'select') return;
+      const point = pointFromEvent(event);
+      if (tool === 'landmark') {
+        const name = document.querySelector('#landmark-name').value.trim();
+        if (!name) return setStatus('Enter a landmark name first', true);
+        layout.landmarks.push({ name, ...point });
+        document.querySelector('#landmark-name').value = '';
+        setTool('select');
+        setStatus('Landmark added');
+      } else {
+        drawing.push(point);
+        render();
+      }
+    });
+
+    document.querySelectorAll('[data-tool]').forEach(button => button.addEventListener('click', () => setTool(button.dataset.tool)));
+    document.querySelector('#finish').addEventListener('click', finishShape);
+    document.querySelector('#undo').addEventListener('click', () => { drawing.pop(); render(); });
+    document.querySelector('#angle').addEventListener('input', event => { layout.cameras[selectedCamera].angle = Number(event.target.value); render(); });
+    document.querySelector('#fov').addEventListener('input', event => { layout.cameras[selectedCamera].fieldOfView = Number(event.target.value); render(); });
+    document.querySelector('#included').addEventListener('change', event => {
+      layout.cameras[selectedCamera].included = event.target.checked;
+      setStatus(event.target.checked ? 'Photo included. Save when ready.' : 'Photo excluded. Save when ready.');
+      render();
+    });
+    document.querySelector('#save').addEventListener('click', async () => {
+      setStatus('Saving…');
+      const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(layout) });
+      const result = await response.json();
+      if (!response.ok) return setStatus(result.error || 'Save failed', true);
+      setStatus('Saved');
+    });
+
+    async function start() {
+      const state = await fetch('/api/state').then(response => response.json());
+      layout = mergeSavedLayout(state.layout, state.photos);
+      const list = document.querySelector('#photo-list');
+      list.innerHTML = layout.cameras.map((camera, index) => `<button class="photo-card" data-camera="${index}"><img src="${photoUrl(camera.source)}" alt=""><span>${camera.label}. ${escapeHtml(camera.source)}</span></button>`).join('');
+      list.querySelectorAll('button').forEach(button => button.addEventListener('click', () => { selectedCamera = Number(button.dataset.camera); setTool('select'); }));
+      render();
+    }
+    start().catch(error => setStatus(error.message, true));
+  </script>
+</body>
+</html>
