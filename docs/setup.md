@@ -114,24 +114,23 @@ The initial model evaluation should compare photos alone against photos anchored
 
 Treat a garden address, coordinates, aerial image, and ground captures as private project data. Ask for location consent separately from photo access. The current gateway deliberately disables request logging and caching. Provider retention terms still apply; Cloudflare's Zero Data Retention setting must not be presented as protection for a provider that does not support it.
 
-The repository includes a local evaluation harness and a small spatial-layout editor. Put a capture set in an ignored directory, then start the editor:
+The repository includes a local evaluation app. Start it with an ignored workspace directory:
+
+```sh
+pnpm eval:layout -- --workspace .amp/evals/my-garden
+```
+
+Upload and delete reference photos in the app. Draw the approximate garden boundary and structure footprints, place each camera, set its viewing direction and field of view, and add fixed landmarks that appear across photographs. Overlapping or unhelpful photos can be excluded without deleting them. Excluded photos remain available in the editor but are omitted from model requests and the saved layout diagram. The layout is deliberately described as approximate and not to scale.
+
+Select one or more models, then use **Save and generate**. The app saves `layout.json`, `layout.svg`, and `layout.png`, runs the selected models, and shows the blind scoring form when generation finishes. Scores are saved as `runs/<run-id>/scores.json` inside the workspace. The app polls the local job while it runs, so no agent handoff or separate command is needed.
+
+Pass `--input <directory>` the first time to import an existing capture set. Later uploads go directly into the workspace:
 
 ```sh
 pnpm eval:layout -- --input .amp/evals/my-garden/source-photos --workspace .amp/evals/my-garden
 ```
 
-The editor saves `layout.json`, `layout.svg`, and `layout.png` in its workspace. Draw the approximate garden boundary and structure footprints, place each camera, set its viewing direction and field of view, and add fixed landmarks that appear across photographs. Overlapping or unhelpful photos can be excluded without deleting them. Excluded photos remain available in the editor but are omitted from model requests and the saved layout diagram. The layout is deliberately described as approximate and not to scale.
-
-After saving the layout, run the model comparison:
-
-```sh
-pnpm eval:images -- \
-  --input .amp/evals/my-garden/photos \
-  --layout .amp/evals/my-garden/layout.json \
-  --output .amp/evals/my-garden/run-1
-```
-
-The harness compares the Cloudflare-hosted FLUX.2 Dev baseline with FLUX.2 Max, GPT Image 1.5, and Seedream 5 Pro through the deployed gateway. Grok Imagine Image Quality is available for explicit masked-edit runs. The harness normalizes local inputs, runs models sequentially, retains response and billing metadata, and writes a blind side-by-side scoring page under the output directory. Source photographs, layouts, and generated outputs are deliberately excluded from Git. ImageMagick's `magick` executable is required for local normalization and diagram rendering.
+The app can compare the Cloudflare-hosted FLUX.2 Dev baseline with FLUX.2 Max, GPT Image 1.5, and Seedream 5 Pro through the deployed gateway. Grok Imagine Image Quality remains available for explicit masked-edit runs through the command-line evaluator. The evaluator normalizes local inputs, runs models sequentially, and retains response and billing metadata. Source photographs, layouts, generated outputs, and scores are excluded from Git. ImageMagick's `magick` executable is required for local normalization and diagram rendering.
 
 Use `--dry-run` to inspect prepared inputs without calling a model. Use `--models <model-id,model-id>` for a cheaper partial run. The FLUX.2 Dev request is limited to four references. With a saved layout, it receives the diagram plus three broad-coverage photos. Other models receive the diagram and every photo up to their documented limit.
 

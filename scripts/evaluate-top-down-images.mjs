@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, extname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -15,7 +16,7 @@ Use a directly overhead orthographic camera. Show no horizon, sky, people, label
 
 Do not add paths, patios, pools, furniture, flower beds, buildings, or other features that are not supported by the photographs. Where the boundary or geometry is hidden, make a conservative natural transition instead of inventing detail. Aim for a realistic aerial garden photograph with enough visual clarity to draw editable planning shapes over it.`;
 
-const MODEL_DEFINITIONS = [
+export const MODEL_DEFINITIONS = [
   {
     id: "@cf/black-forest-labs/flux-2-dev",
     slug: "flux-2-dev",
@@ -376,7 +377,7 @@ function reviewHtml(results, runId) {
 </body></html>`;
 }
 
-async function main() {
+export async function main() {
   const options = parseArguments(process.argv.slice(2));
   if (options.help) return printHelp();
   if (!options.input) throw new Error("Missing --input <photo-directory>");
@@ -461,7 +462,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Mossboard garden layout</title>
+  <title>Mossboard top-down evaluation</title>
   <style>
     :root { color-scheme: light; font: 15px/1.45 Inter, ui-sans-serif, system-ui, sans-serif; color: #213027; background: #ecece5; }
     * { box-sizing: border-box; }
-    body { margin: 0; height: 100vh; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; }
+    body { margin: 0; min-height: 100vh; }
     button, input { font: inherit; }
     button { border: 1px solid #b9bdb3; border-radius: 7px; padding: .55rem .75rem; background: #fff; color: inherit; cursor: pointer; }
     button:hover, button[aria-pressed="true"] { border-color: #496848; background: #e5eee0; }
@@ -17,7 +17,7 @@
     header p { margin: .2rem 0 0; color: #697169; font-size: .86rem; }
     .save-area { display: flex; align-items: center; gap: .7rem; }
     #status { min-width: 6rem; text-align: right; color: #536057; font-size: .86rem; }
-    main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-height: 0; overflow: hidden; }
+    main { display: grid; grid-template-columns: minmax(0, 1fr) 350px; height: calc(100vh - 65px); min-height: 650px; overflow: hidden; }
     .workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); min-width: 0; min-height: 0; overflow: hidden; }
     .toolbar { display: flex; gap: .45rem; align-items: center; padding: .65rem 1rem; background: #f7f7f2; border-bottom: 1px solid #d1d3ca; overflow-x: auto; }
     .toolbar .spacer { flex: 1; }
@@ -48,13 +48,29 @@
     .drawn-item { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .45rem .5rem; border: 1px solid #d5d7cf; border-radius: 6px; background: #fff; }
     .drawn-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .drawn-item button { flex: none; padding: .3rem .5rem; color: #912a31; }
-    @media (max-width: 850px) { body { height: auto; display: block; overflow: auto; } main { grid-template-columns: 1fr; } .workspace { min-height: 70vh; } aside { border-left: 0; border-top: 1px solid #d1d3ca; } }
+    .header-actions { display: flex; align-items: center; gap: .55rem; }
+    .danger { color: #912a31; }
+    .model-list { display: grid; gap: .35rem; margin: .6rem 0 1rem; }
+    .model-list label { display: flex; gap: .45rem; align-items: center; text-transform: capitalize; }
+    .generation-state { white-space: pre-line; margin: .7rem 0; color: #536057; font-size: .84rem; }
+    .review { padding: 1.25rem; border-top: 1px solid #c8cbc1; background: #e6e7df; }
+    .review h2 { margin: 0 0 .25rem; }
+    .review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 1rem; margin-top: 1rem; }
+    .candidate { background: #fafaf6; border: 1px solid #c8cbc1; border-radius: 9px; padding: 1rem; }
+    .candidate h3 { margin: 0 0 .7rem; }
+    .candidate > img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: #d7d8d1; border-radius: 6px; }
+    .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin: .8rem 0; }
+    .score-grid label, .candidate .notes { display: grid; gap: .25rem; }
+    .score-grid input, textarea { width: 100%; border: 1px solid #b9bdb3; border-radius: 6px; padding: .5rem; font: inherit; }
+    textarea { resize: vertical; }
+    .review-actions { display: flex; align-items: center; gap: .7rem; margin-top: 1rem; }
+    @media (max-width: 850px) { main { height: auto; min-height: 0; grid-template-columns: 1fr; } .workspace { min-height: 70vh; } aside { border-left: 0; border-top: 1px solid #d1d3ca; } header { align-items: flex-start; } .header-actions { flex-wrap: wrap; justify-content: flex-end; } }
   </style>
 </head>
 <body>
   <header>
-    <div><h1>Approximate garden layout</h1><p>Place cameras and fixed geometry. Accuracy to a few metres is enough.</p></div>
-    <div class="save-area"><span id="status" role="status"></span><button class="primary" id="save">Save layout</button></div>
+    <div><h1>Top-down image evaluation</h1><p>Upload references, describe their positions, generate candidates, and score the results.</p></div>
+    <div class="header-actions"><span id="status" role="status"></span><input id="photo-input" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden><button id="upload">Add photos</button><button id="save">Save layout</button><button class="primary" id="generate">Save and generate</button></div>
   </header>
   <main>
     <section class="workspace">
@@ -71,11 +87,14 @@
     </section>
     <aside>
       <div class="instructions">Start with the garden outline, then add the house and veranda. Drag each numbered photo to where it was taken and aim its arrow in the direction the camera faced.</div>
+      <h2>Models</h2><div class="model-list" id="model-list"></div>
+      <div class="generation-state" id="generation-state"></div>
       <section><h2>Drawn items</h2><div class="drawn-items" id="drawn-items"></div></section>
       <section id="camera-inspector">
         <h2>Selected photo</h2>
         <img class="preview" id="preview" alt="Selected garden reference">
         <div class="selected-name" id="selected-name"></div>
+        <button class="danger" id="delete-photo">Delete this photo</button>
         <label class="field"><span><input id="included" type="checkbox"> Use this photo in eval runs</span></label>
         <label class="field"><span class="field-row"><span>Direction</span><output id="angle-output"></output></span><input id="angle" type="range" min="0" max="359" step="1"></label>
         <label class="field"><span class="field-row"><span>Field of view</span><output id="fov-output"></output></span><input id="fov" type="range" min="30" max="120" step="5"></label>
@@ -85,6 +104,11 @@
       <h2>Reference photos</h2><div class="instructions" id="reference-count"></div><div class="photo-list" id="photo-list"></div>
     </aside>
   </main>
+  <section class="review" id="review" hidden>
+    <h2>Score the latest run</h2><div id="run-summary"></div>
+    <div class="review-grid" id="review-grid"></div>
+    <div class="review-actions"><button class="primary" id="save-scores">Save scores</button><span id="score-status" role="status"></span></div>
+  </section>
   <script>
     const svg = document.querySelector('#plan');
     const ns = 'http://www.w3.org/2000/svg';
@@ -99,6 +123,9 @@
     let tool = 'select';
     let drawing = [];
     let dragging;
+    let serverState;
+    let renderedRunId;
+    let pollTimer;
 
     const escapeHtml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
     const polygon = points => points.map(point => `${point.x},${point.y}`).join(' ');
@@ -173,6 +200,11 @@
 
     function renderInspector() {
       const camera = layout.cameras[selectedCamera];
+      document.querySelector('#camera-inspector').hidden = !camera;
+      if (!camera) {
+        document.querySelector('#reference-count').textContent = 'No photos yet. Add at least one reference photo to begin.';
+        return;
+      }
       document.querySelector('#preview').src = photoUrl(camera.source);
       document.querySelector('#selected-name').textContent = `Photo ${camera.label}: ${camera.source}`;
       document.querySelector('#included').checked = camera.included !== false;
@@ -186,6 +218,53 @@
       });
       const includedCount = layout.cameras.filter(camera => camera.included !== false).length;
       document.querySelector('#reference-count').textContent = `${includedCount} of ${layout.cameras.length} selected. Seedream accepts at most 9 photos when the layout is included.`;
+    }
+
+    function renderPhotoList() {
+      const list = document.querySelector('#photo-list');
+      list.innerHTML = layout.cameras.map((camera, index) => `<button class="photo-card" data-camera="${index}"><img src="${photoUrl(camera.source)}" alt=""><span>${camera.label}. ${escapeHtml(camera.source)}</span></button>`).join('');
+      list.querySelectorAll('button').forEach(button => button.addEventListener('click', () => { selectedCamera = Number(button.dataset.camera); setTool('select'); }));
+    }
+
+    function renderGeneration() {
+      const generation = serverState.generation;
+      const container = document.querySelector('#generation-state');
+      document.querySelector('#generate').disabled = generation.status === 'running';
+      if (generation.status === 'running') container.textContent = `Generating…\n${generation.log || ''}`;
+      else if (generation.status === 'failed') container.textContent = `Generation failed: ${generation.error || generation.log || 'Unknown error'}`;
+      else if (generation.status === 'completed') container.textContent = 'Generation complete. Score the candidates below.';
+      else container.textContent = '';
+    }
+
+    function renderReview(run) {
+      const section = document.querySelector('#review');
+      section.hidden = !run?.results.length;
+      if (!run?.results.length || renderedRunId === run.runId) return;
+      renderedRunId = run.runId;
+      document.querySelector('#run-summary').textContent = `${run.results.length} candidate${run.results.length === 1 ? '' : 's'} generated ${new Date(run.createdAt).toLocaleString()}. Model names stay hidden while scoring.`;
+      document.querySelector('#review-grid').innerHTML = run.results.map(result => {
+        const saved = run.scores[result.label] || {};
+        const scoreField = (label, name) => `<label>${label}<input type="number" min="1" max="5" step="1" name="${name}" value="${saved[name] ?? 3}" required></label>`;
+        return `<article class="candidate" data-label="${result.label}"><h3>Candidate ${result.label}</h3><img src="/runs/${encodeURIComponent(run.runId)}/outputs/${encodeURIComponent(result.file)}" alt="Generated top-down candidate ${result.label}"><div class="score-grid">${scoreField('Object presence', 'objectPresence')}${scoreField('Relative placement', 'relativePlacement')}${scoreField('Overhead viewpoint', 'overheadViewpoint')}${scoreField('No hallucinations', 'noHallucinations')}</div><label class="notes">Notes<textarea name="notes" rows="3" maxlength="4000">${escapeHtml(saved.notes || '')}</textarea></label></article>`;
+      }).join('');
+      if (run.failures.length) document.querySelector('#run-summary').textContent += ` ${run.failures.length} model request${run.failures.length === 1 ? '' : 's'} failed.`;
+    }
+
+    async function refreshState(preserveLayout = true) {
+      const nextState = await fetch('/api/state').then(response => response.json());
+      serverState = nextState;
+      layout = mergeSavedLayout(preserveLayout && layout ? layout : nextState.layout, nextState.photos);
+      selectedCamera = Math.min(selectedCamera, Math.max(0, layout.cameras.length - 1));
+      renderPhotoList();
+      render();
+      renderGeneration();
+      renderReview(nextState.latestRun);
+      if (nextState.generation.status === 'running' && !pollTimer) {
+        pollTimer = setInterval(() => refreshState(true).catch(error => setStatus(error.message, true)), 2000);
+      } else if (nextState.generation.status !== 'running' && pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = undefined;
+      }
     }
 
     function renderDrawnItems() {
@@ -269,21 +348,88 @@
       setStatus(event.target.checked ? 'Photo included. Save when ready.' : 'Photo excluded. Save when ready.');
       render();
     });
-    document.querySelector('#save').addEventListener('click', async () => {
+    async function saveLayout() {
+      if (layout.cameras.length === 0) throw new Error('Add at least one photo before saving');
       setStatus('Saving…');
       const response = await fetch('/api/layout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(layout) });
       const result = await response.json();
-      if (!response.ok) return setStatus(result.error || 'Save failed', true);
+      if (!response.ok) throw new Error(result.error || 'Save failed');
       setStatus('Saved');
+    }
+
+    document.querySelector('#save').addEventListener('click', () => saveLayout().catch(error => setStatus(error.message, true)));
+    document.querySelector('#upload').addEventListener('click', () => document.querySelector('#photo-input').click());
+    document.querySelector('#photo-input').addEventListener('change', async event => {
+      try {
+        const files = [...event.target.files];
+        for (const [index, file] of files.entries()) {
+          setStatus(`Uploading ${index + 1} of ${files.length}…`);
+          const response = await fetch('/api/photos', { method: 'POST', headers: { 'Content-Type': file.type || 'application/octet-stream', 'X-File-Name': encodeURIComponent(file.name) }, body: file });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || `Could not upload ${file.name}`);
+        }
+        event.target.value = '';
+        await refreshState(true);
+        setStatus(`${files.length} photo${files.length === 1 ? '' : 's'} added`);
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+    document.querySelector('#delete-photo').addEventListener('click', async () => {
+      const camera = layout.cameras[selectedCamera];
+      if (!camera || !confirm(`Delete ${camera.source}? This removes it from the workspace.`)) return;
+      try {
+        setStatus('Deleting…');
+        const response = await fetch(`/api/photos/${encodeURIComponent(camera.source)}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Delete failed');
+        await refreshState(true);
+        setStatus('Photo deleted');
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+    document.querySelector('#generate').addEventListener('click', async () => {
+      try {
+        await saveLayout();
+        const models = [...document.querySelectorAll('#model-list input:checked')].map(input => input.value);
+        if (!models.length) throw new Error('Select at least one model');
+        setStatus('Starting generation…');
+        const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ models }) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not start generation');
+        await refreshState(true);
+        setStatus('Generation started');
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    });
+    document.querySelector('#save-scores').addEventListener('click', async () => {
+      try {
+        const run = serverState.latestRun;
+        const scores = {};
+        document.querySelectorAll('.candidate').forEach(card => {
+          scores[card.dataset.label] = {
+            objectPresence: Number(card.querySelector('[name="objectPresence"]').value),
+            relativePlacement: Number(card.querySelector('[name="relativePlacement"]').value),
+            overheadViewpoint: Number(card.querySelector('[name="overheadViewpoint"]').value),
+            noHallucinations: Number(card.querySelector('[name="noHallucinations"]').value),
+            notes: card.querySelector('[name="notes"]').value
+          };
+        });
+        const response = await fetch(`/api/runs/${encodeURIComponent(run.runId)}/scores`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scores) });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not save scores');
+        document.querySelector('#score-status').textContent = 'Scores saved';
+      } catch (error) {
+        document.querySelector('#score-status').textContent = error.message;
+      }
     });
 
     async function start() {
       const state = await fetch('/api/state').then(response => response.json());
-      layout = mergeSavedLayout(state.layout, state.photos);
-      const list = document.querySelector('#photo-list');
-      list.innerHTML = layout.cameras.map((camera, index) => `<button class="photo-card" data-camera="${index}"><img src="${photoUrl(camera.source)}" alt=""><span>${camera.label}. ${escapeHtml(camera.source)}</span></button>`).join('');
-      list.querySelectorAll('button').forEach(button => button.addEventListener('click', () => { selectedCamera = Number(button.dataset.camera); setTool('select'); }));
-      render();
+      document.querySelector('#model-list').innerHTML = state.models.map((model, index) => `<label><input type="checkbox" value="${escapeHtml(model.id)}" ${index === 0 ? 'checked' : ''}> ${escapeHtml(model.name)}</label>`).join('');
+      await refreshState(false);
     }
     start().catch(error => setStatus(error.message, true));
   </script>
